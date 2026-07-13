@@ -2,260 +2,180 @@
 
 ## 1. Purpose
 
-This document defines how to create fair, readable, replayable clue locations and routes for Treasure Hunt.
+This guide defines how to create fair clue locations that work for both the human player and rival bots.
 
-The map is handcrafted. Replayability comes from selecting different authored clue locations and riddle variants each match.
+The world is handcrafted. Replayability comes from route selection, riddle variants, and bot decisions.
 
 ---
 
 ## 2. Clue-location template
 
-Every location should record:
+Every location must record:
 
 | Field | Description |
 |---|---|
 | Location ID | Stable unique identifier |
 | Region | Recognizable map area |
-| Landmark | Object or formation described by the clue |
-| Search method | Dig, inspect, climb, interact, or local puzzle |
+| Landmark | Object or formation described by the riddle |
+| Search method | Dig, inspect, or interact |
 | Difficulty | 1–5 |
 | Stage use | Intermediate, final, or both |
-| Exact solution | Precise completion condition |
+| Exact human solution | Valid completion condition |
 | Riddle variants | At least two |
-| Intended search radius | Area players are expected to investigate |
-| Similar landmarks | Potential sources of ambiguity |
-| Visibility notes | Where the landmark can be seen from |
-| Failure risks | Blocking, clipping, accidental triggering |
-| Reset behavior | How the location returns to unused state |
+| Intended search radius | Area the human should investigate |
+| Similar landmarks | Potential ambiguity |
+| Bot search profile | Correct/wrong candidates and search points |
+| Navigation anchors | Reachable bot positions |
+| Reset behaviour | State restored between sessions |
+| Failure risks | Blocking, clipping, accidental trigger |
+
+A location is incomplete until both the human and a bot can finish it.
 
 ---
 
-## 3. Riddle-writing rules
+## 3. Riddle rules
 
-### A good riddle identifies
+A good riddle identifies:
 
 1. A region or landmark
 2. A distinguishing feature
 3. Sometimes the required search method
 
-### Good example structure
+Example:
 
 > Beneath the roots of the tree that watches the valley, the first secret sleeps.
 
 - Landmark: prominent tree
-- Distinguishing feature: overlooks the valley
-- Search method: dig beneath roots
+- Feature: overlooks the valley
+- Method: dig beneath roots
 
-### Avoid
+Avoid:
 
-- Pure trivia unrelated to the map
-- Words requiring obscure cultural knowledge
-- A clue that fits five identical objects
+- External trivia
 - Exact coordinates disguised as poetry
-- Riddles so vague that following other players is the only strategy
-- Riddles that directly state the full answer
-- Long paragraphs players cannot reread while moving
+- A clue fitting many identical objects unintentionally
+- Extremely long text
+- Obscure cultural knowledge
+- Wording that makes random brute force the best strategy
 
-### Length target
-
-Most riddles should fit in one to three short lines when shown in the compact HUD.
-
----
-
-## 4. Search-method design
-
-## 4.1 Dig locations
-
-A dig clue needs:
-
-- A clearly interpretable landmark
-- A reasonable search radius
-- Ground that visually supports digging
-- Enough space for several players
-- No terrain edge or collision problem
-- A hidden zone large enough to reward correct interpretation
-
-Wrong digging should remain possible nearby.
-
-### Recommended discovery profile
-
-- 3–6 credited digs for an intermediate clue
-- 5–10 credited digs for a final treasure
-- Small delay between credited digs
-- Progressive but not immediate reveal
-
-## 4.2 Hidden-object locations
-
-The hidden object should be:
-
-- Invisible from normal travel distance
-- Visible after careful local inspection
-- Reachable by multiple players
-- Not dependent on one exact camera pixel
-- Not marked by unique lighting unless the riddle implies it
-
-## 4.3 Climb locations
-
-A climb clue should:
-
-- Use broad, forgiving traversal
-- Avoid precision jumping
-- Provide at least one obvious possible route after the landmark is found
-- Prevent players from getting trapped
-- Avoid fall damage in the initial design
-
-## 4.4 Interaction locations
-
-The interaction should be understandable from context:
-
-- Bell can be rung
-- Lever can be pulled
-- Statue can rotate
-- Torch can be lit
-
-Avoid arbitrary interaction with ordinary props that do not appear interactive.
-
-## 4.5 Local puzzles
-
-A local puzzle should take roughly 10–45 seconds after discovery.
-
-The riddle should provide the solution logic. The puzzle should not become a separate five-minute minigame.
+Most riddles should fit in one to three short HUD lines.
 
 ---
 
-## 5. Landmark design
+## 4. Search-method requirements
 
-A landmark is successful when players can identify and discuss it without developer terminology.
+### Dig
 
-Useful qualities:
+- Ground visibly supports digging.
+- Several players/bots could theoretically search the area in a future version.
+- Discovery zone is broad enough to reward correct interpretation.
+- Wrong nearby digs remain possible.
+- Bot search points cover both correct and plausible incorrect positions.
 
-- Strong silhouette
-- Unique height, shape, or material
-- Visible from multiple approaches
-- Located within a memorable region
-- Not visually confused with another landmark unless intentional
+Initial targets:
 
-Examples:
+- Intermediate: 3–6 credited digs
+- Final: 5–10 credited digs
 
-- Tallest tree overlooking the valley
-- Lone black rock in green grass
-- Bridge missing its center planks
-- Three pillars, one broken
-- Cabin below the snow line
-- Statue facing away from the river
+### Inspect
+
+- Hidden object is invisible from normal travel distance.
+- It becomes visible through careful local observation.
+- Interaction does not require one exact camera pixel.
+- Bot has a reachable inspection anchor.
+
+### Interact
+
+- The object visibly suggests an action: bell, lever, statue, torch, panel.
+- The riddle identifies why this object matters.
+- No arbitrary interaction with ordinary decoration.
+- Bot can stand at the same valid action anchor.
+
+---
+
+## 5. Bot candidate design
+
+For every location, create:
+
+- Correct candidate landmark
+- One or more wrong candidates with a believable relationship to the wording
+- Search points for each candidate
+- Plausibility values
+
+Wrong candidates should be plausible enough to make the bot look thoughtful, but not so similar that the human clue becomes unfair.
+
+Do not create wrong candidates merely to waste time across the entire map. They should support readable behaviour.
 
 ---
 
 ## 6. Route composition
 
-A standard four-stage match might use:
+A standard session uses:
 
-1. Easy, highly readable opening clue
-2. Medium clue using a different search method
-3. Harder clue in a different region
-4. Final treasure clue with a satisfying search area
+1. Easy opening clue
+2. Medium clue with a different method or region
+3. Harder clue
+4. Final treasure clue
 
-### Route rules
+Rules:
 
+- No duplicate location.
+- Avoid more than two stages with the same method in a row.
+- Avoid repeated travel between opposite map edges.
 - Do not start with the hardest clue.
-- Do not use more than two dig stages in a row.
-- Do not send players repeatedly between opposite map edges.
-- Do not place consecutive clues in the same immediate landmark cluster.
-- Use the final clue to create convergence and competition.
-- Avoid a final location that can be watched from the previous clue.
-
-### Example route
-
-1. Inspect a hollow in the tallest valley tree
-2. Dig beside the lone rock near the river
-3. Rotate the broken statue behind the ruins
-4. Dig for the final treasure beneath the bridge’s longest shadow
+- Final location should create a visible race and satisfying claim.
+- Every selected location must have validated bot metadata.
 
 ---
 
-## 7. Difficulty rating
+## 7. Initial location targets
 
-### Difficulty 1
-
-- Landmark visible and unique
-- Riddle names obvious features
-- Broad search area
-- Simple action
-
-### Difficulty 2
-
-- Landmark requires light exploration
-- Riddle uses one metaphor
-- Moderate search radius
-
-### Difficulty 3
-
-- Several possible interpretations
-- Requires observing landmark orientation
-- Smaller exact solution area
-
-### Difficulty 4
-
-- Requires combining two environmental facts
-- Less visible landmark
-- Multi-step interaction
-
-### Difficulty 5
-
-Use rarely. Appropriate for special modes, not the first public demo.
-
----
-
-## 8. Fairness checklist
-
-Before approving a clue:
-
-- [ ] Can a new player locate the general region?
-- [ ] Does the riddle describe something actually visible?
-- [ ] Are there accidental duplicate answers?
-- [ ] Can several players search simultaneously?
-- [ ] Can the target be blocked?
-- [ ] Can the object be triggered accidentally from far away?
-- [ ] Is the solution readable at common graphics settings?
-- [ ] Does the clue remain solvable from every spawn orientation?
-- [ ] Does the target reset correctly?
-- [ ] Is the final action satisfying?
-
----
-
-## 9. Initial content list
-
-Suggested vertical-slice locations:
+Suggested version 1.0 content:
 
 | ID | Region | Method | Concept |
 |---|---|---|---|
 | VALLEY_TALLEST_TREE_ROOTS | Green valley | Dig | Beneath roots of tallest tree |
 | VALLEY_HOLLOW_TREE | Green valley | Inspect | Note inside hollow trunk |
-| RIVER_BRIDGE_UNDERSIDE | River | Inspect | Map fragment beneath bridge |
-| RIVER_BROKEN_BELL | River ruins | Interact | Ring silent/broken bell |
+| RIVER_BRIDGE_UNDERSIDE | River | Inspect | Fragment beneath bridge |
+| RIVER_BROKEN_BELL | River ruins | Interact | Ring the silent bell |
 | ROCK_LONE_STONE_BASE | Rocky basin | Dig | Buried beside isolated rock |
-| RUINS_BACK_OF_STATUE | Ruins | Inspect | Token hidden behind statue |
-| RUINS_THREE_PILLARS | Ruins | Local puzzle | Activate correct pillar order |
-| CABIN_ROOF_BEAM | Cabin slope | Climb | Clue tucked above door beam |
-| FINAL_BRIDGE_SHADOW | River | Dig final | Treasure under longest shadow |
-| FINAL_SNOWLINE_CAVE | Snow ridge | Inspect final | Chest behind concealed cave panel |
+| RUINS_BACK_OF_STATUE | Ruins | Inspect | Token behind statue |
+| RUINS_TURNING_STATUE | Ruins | Interact | Rotate statue toward landmark |
+| CABIN_LOOSE_PANEL | Cabin slope | Interact | Open concealed wall panel |
+| FOREST_FALLEN_LOG | Forest | Inspect | Clue within split log |
+| SNOW_LONE_PINE | Snow ridge | Dig | Buried on sheltered side |
+| FINAL_BRIDGE_SHADOW | River | Dig final | Treasure beneath bridge shadow |
+| FINAL_CAVE_PANEL | Snow ridge | Interact final | Chest behind concealed panel |
+| FINAL_RUINED_TOWER | Ruins | Dig final | Treasure at tower foundation |
+
+These are design placeholders; final locations must match the actual terrain.
 
 ---
 
-## 10. Content production targets
+## 8. Fairness checklist
 
-### Vertical slice
+- [ ] Can the human identify the general region?
+- [ ] Does the clue describe a visible fact?
+- [ ] Is the intended ambiguity controlled?
+- [ ] Is the target reachable?
+- [ ] Can the bot reach every candidate and search point?
+- [ ] Does the target reset correctly?
+- [ ] Is the solution hidden from normal travel distance?
+- [ ] Can the target be accidentally triggered?
+- [ ] Does the clue remain solvable from every spawn orientation?
+- [ ] Is the final action satisfying?
+- [ ] Does the bot behaviour look connected to the riddle?
 
-- 8 intermediate locations
-- 2 final locations
-- 16+ riddle texts
-- 3 search methods
-- 1 complete route presentation set
+---
 
-### Demo
+## 9. Content budget
 
-- 18–24 intermediate locations
-- 5–8 final locations
-- 50+ riddle variants
-- 4–5 search methods
-- Multiple difficulty-balanced route profiles
+Version 1.0 maximum:
+
+- 10–12 intermediate locations
+- 3–4 final locations
+- 2–3 riddle variants per location
+- 3 solution methods
+- 3 difficulty profiles
+
+Do not add a second map until these locations are polished and replayable.
