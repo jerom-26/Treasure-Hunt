@@ -2,186 +2,172 @@
 
 ## 1. Objective
 
-Determine whether the game’s core loop is entertaining before investing in additional maps, cosmetics, progression, or large amounts of content.
+Determine whether a single human competing against AI rival hunters creates an understandable, fair, replayable treasure-hunt session.
 
-The test is not primarily about whether players like the art. It is about whether shared riddles, environmental searching, player observation, and randomized routes produce repeatable social tension.
+The test is primarily about:
 
----
-
-## 2. Test groups
-
-Run multiple sessions with:
-
-- Players unfamiliar with the project
-- Players who know the map
-- Friends using voice chat
-- Players without voice chat
-- Two-player tests
-- Four-player tests
-- Target-size tests when stable
-
-Avoid relying only on people who helped develop the game.
+- Riddle clarity
+- Environmental searching
+- Bot pressure and fairness
+- Timer pacing
+- Route replayability
+- Final treasure climax
 
 ---
 
-## 3. Developer behavior
+## 2. Test stages
 
-During the test:
+### Stage A — Human-only mechanics
 
-- Do not explain a clue unless the session is blocked.
-- Do not tell players where to search.
-- Do not point out UI elements unless necessary to start.
-- Observe silently.
-- Record exact moments of confusion, laughter, following, deception, and frustration.
-- Ask questions only after the match.
+Test free digging, inspect, interact, route generation, timer, and reset before bots.
+
+### Stage B — One bot
+
+Test whether one bot can complete all locations and create useful pressure.
+
+### Stage C — Multiple bots
+
+Only after one bot is reliable, test two and three rivals.
+
+### Stage D — Release candidate
+
+Test fresh installs, settings, save data, all difficulties, and repeated sessions.
 
 ---
 
-## 4. Core observations
+## 3. Developer behaviour
+
+- Do not explain clue answers during normal tests.
+- Do not defend bot behaviour.
+- Record exact moments when players follow, ignore, or mistrust a bot.
+- Record when a bot appears to cheat or act randomly.
+- Use route and bot seeds to reproduce issues.
+- Ask neutral questions after the session.
+
+---
+
+## 4. Metrics
 
 Track:
 
-- Time to understand the objective
-- Time to solve each stage
-- Number of wrong dig attempts
-- Number of players reaching the correct region
-- Whether players follow one another
-- Whether players deliberately mislead others
-- Number of players still engaged after losing a clue
-- Final treasure claim duration
-- Match length
-- Rematch requests
-- Disconnections or technical failures
+- Time to understand the goal
+- Time to solve each clue
+- Human and bot clue credits
+- Wrong human digs
+- Bot wrong candidates and failed searches
+- Human reaction to bot movement
+- Timer remaining at final claim
+- Winner
+- Session length
+- Route seed and bot seed
+- Restart/rematch request
+- Technical failures
 
 ---
 
-## 5. Post-match questions
-
-Use short neutral questions:
+## 5. Post-session questions
 
 1. What did you think the goal was?
 2. Which clue felt best?
-3. Which clue felt unfair or confusing?
-4. Did you ever follow another player? Why?
-5. Did you ever pretend to know the answer?
-6. Did digging feel useful or random?
-7. Did you understand when another player solved a clue?
-8. Did you feel you could recover after falling behind?
-9. Was the final treasure satisfying?
-10. Would you play another round immediately?
-11. What would stop you from playing again?
-
-Do not ask only “Was it fun?”
+3. Which clue felt unfair?
+4. Did the rival change where you searched?
+5. Did the rival ever appear to cheat?
+6. Did the rival ever look completely random?
+7. Did losing an intermediate clue make you want to stop?
+8. Did you still believe you could win before the final treasure?
+9. Did the timer improve or damage the experience?
+10. Was the final treasure satisfying?
+11. Would you immediately play another randomized session?
 
 ---
 
-## 6. Success thresholds
+## 6. Success criteria
 
-The vertical slice passes when most sessions show:
+The game passes when most external sessions show:
 
-- Objective understood within one minute
-- No developer assistance required for basic controls
-- At least one clue solved from environmental reasoning
-- At least one moment of social tracking or deception
-- Few or no players disengaging after another player solves a clue
-- Match length within roughly 8–15 minutes
-- Strong final-treasure convergence
-- Majority requesting another round
-- Different seeds producing meaningfully different behavior
+- Goal understood within one minute
+- Basic controls understood without developer intervention
+- Clues solved through environmental reasoning
+- Rival movement changes player decisions
+- Bots make visible but believable mistakes
+- Player remains engaged after a bot solves a clue
+- Final treasure creates urgency
+- Session finishes in roughly 8–15 minutes
+- Majority request another session
+- Different seeds create meaningfully different decisions
 
 ---
 
 ## 7. Warning signs
 
-Revise the design if:
+Revise if:
 
-- Everyone simply follows the fastest player.
-- Players spread out but never pay attention to one another.
-- Wrong digging feels like wasted time with no entertainment.
-- Riddles are solved by guessing every landmark.
-- Players cannot distinguish search methods.
-- The minimap solves navigation too directly.
-- The same knowledgeable player wins every route.
-- Players stop trying after losing the first clue.
-- The final treasure is found accidentally.
-- Match restarts take too long.
+- Bot walks directly to every exact answer.
+- Bot frequently gets stuck.
+- Human simply follows the bot every stage.
+- Bot behaviour has no effect on the player.
+- Wrong digging feels like empty waiting.
+- Timer expires before fair clue progress.
+- Riddle wording fits too many landmarks.
+- A player cannot recover after losing the first clue.
+- Final treasure is found accidentally.
+- Reset does not fully restore world and bots.
 
 ---
 
-## 8. Test log template
+## 8. Test log
 
 ```text
 Build:
 Date:
-Players:
-Voice chat:
+Tester:
+Difficulty:
+Number of bots:
 Route seed:
+Bot seeds:
 Selected route:
-Match length:
+Session length:
 Winner:
 
 Technical issues:
-- 
+-
 
 Clue 1:
-- Solve time:
 - Solver:
-- Observations:
+- Solve time:
+- Human interpretation:
+- Bot behaviour:
 
 Clue 2:
-- Solve time:
 - Solver:
-- Observations:
+- Solve time:
+- Human interpretation:
+- Bot behaviour:
 
 Clue 3:
-- Solve time:
 - Solver:
-- Observations:
+- Solve time:
+- Human interpretation:
+- Bot behaviour:
 
 Final:
+- Winner:
 - Discovery time:
 - Claim time:
-- Observations:
+- Timer remaining:
 
-Memorable social moments:
-- 
+Did the bot appear fair?
+-
 
-Confusion or frustration:
-- 
+Memorable pressure or social-reading moments:
+-
 
-Players requesting rematch:
-- 
+Frustration:
+-
+
+Would replay immediately:
+-
 
 Changes for next build:
-- 
+-
 ```
-
----
-
-## 9. A/B tests
-
-Useful later:
-
-### Player visibility on minimap
-
-- Version A: all players always visible
-- Version B: players visible only nearby
-- Measure following, deception, and frustration
-
-### Solver reward
-
-- Version A: point and announcement only
-- Version B: short private preview of next clue
-- Measure whether one player snowballs
-
-### Dig feedback
-
-- Version A: identical feedback until reveal
-- Version B: subtle feedback after several correct digs
-- Measure random scanning versus satisfying discovery
-
-### Stage timer
-
-- Version A: no forced hint
-- Version B: regional hint after a long stall
-- Measure fairness and pacing

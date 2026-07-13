@@ -1,19 +1,21 @@
 # Technical Design
 
-## 1. Architecture goals
+## 1. Technical goals
 
-The codebase should support:
+The architecture must support the first-release single-player Rival Hunt while keeping clear seams for future online multiplayer.
 
-- One authoritative match state
-- Multiple search methods using a shared completion contract
-- Hand-authored clue locations
-- Seeded route generation
-- Different riddle variants per match
-- Multiplayer synchronization without exposing hidden answers to clients unnecessarily
-- Fast reset between rounds
-- Easy debugging by route seed and location ID
+It should provide:
 
-The first version should use a host-authoritative listen-server model. Dedicated servers are outside the initial scope.
+- One authoritative local match manager
+- One route shared by the human and all bots
+- Multiple solution types through a common completion contract
+- Human and bot competitors using the same gameplay actions
+- Seeded authored-route generation
+- Session timer, results, and reset
+- Bot navigation and believable search behaviour
+- Development debug information separated from release UI
+
+Do not add networking abstractions that create unnecessary complexity. Preserve stable IDs, event-driven state changes, and controller separation so networking can be added later.
 
 ---
 
@@ -21,76 +23,68 @@ The first version should use a host-authoritative listen-server model. Dedicated
 
 ```text
 GameBootstrap
-├── SessionManager
-├── NetworkAdapter
+├── LocalSessionController
 ├── MatchManager
 │   ├── MatchState
 │   ├── RouteGenerator
-│   ├── ClueDatabase
+│   ├── MatchTimer
 │   └── ResultsTracker
 ├── WorldClueRegistry
+├── CompetitorRegistry
+├── DebugOverlay
 ├── UIManager
 └── AudioManager
+
+TreasureHunter
+├── HunterIdentity
+├── HunterActionController
+├── HumanHunterBrain OR BotHunterBrain
+├── CharacterMovement
+└── Navigation/Animation presentation
 ```
 
-### Main responsibilities
+### `MatchManager`
 
-#### `SessionManager`
+Owns:
 
-- Host/join/leave
-- Lobby state
-- Ready checks
-- Return to menu
-- Session cleanup
+- Current match state
+- Route seed and selected route
+- Active clue index
+- First solver per stage
+- Timer
+- Final treasure state
+- Rankings and winner
+- Round reset
 
-#### `MatchManager`
+The first release uses a local authoritative implementation. Gameplay code should submit attempts to `MatchManager` rather than advancing stages directly.
 
-- Starts and ends rounds
-- Owns the authoritative route
-- Tracks active stage
-- Validates clue completion
-- Assigns solver credit
-- Starts final claim state
-- Publishes synchronized match events
+### `WorldClueRegistry`
 
-#### `RouteGenerator`
+- Registers scene clue locations by stable ID
+- Detects duplicate or missing IDs
+- Resolves route IDs to scene objects
+- Activates only the current solution
+- Resets all location presentation between sessions
 
-- Receives a match seed
-- Filters valid locations
-- Applies route constraints
-- Selects intermediate locations
-- Selects final treasure location
-- Selects riddle variants
-- Returns stable location IDs, not direct scene references
+### `CompetitorRegistry`
 
-#### `WorldClueRegistry`
-
-- Registers all `ClueLocation` components in the loaded scene
-- Resolves stable IDs to scene objects
-- Enables only the active target
-- Disables hidden presentation for inactive targets
-- Reports invalid or duplicate IDs
+- Registers the human and bots
+- Provides stable competitor IDs
+- Tracks clue credit, state, and placement
+- Allows match systems to treat all hunters consistently
 
 ---
 
-## 3. Data model
-
-### `SearchMethod`
+## 3. Core data model
 
 ```csharp
 public enum SearchMethod
 {
     Dig,
     Inspect,
-    Climb,
-    Interact,
-    LocalPuzzle
+    Interact
 }
 ```
-
-### `ClueDefinition`
-
-Recommended as a data asset.
 
 ```csharp
 [CreateAssetMenu(menuName = "Treasure Hunt/Clue Definition")]
@@ -103,12 +97,9 @@ public sealed class ClueDefinition : ScriptableObject
     public bool canBeIntermediate;
     public bool canBeFinal;
     [TextArea] public string[] riddleVariants;
+    public BotSearchProfile botSearchProfile;
 }
 ```
-
-### `ClueLocation`
-
-Placed in the scene.
 
 ```csharp
 public sealed class ClueLocation : MonoBehaviour
@@ -119,10 +110,6 @@ public sealed class ClueLocation : MonoBehaviour
     [SerializeField] private MonoBehaviour solutionBehaviour;
 }
 ```
-
-The scene component and data asset must share the same stable `locationId`.
-
-### Selected route record
 
 ```csharp
 [System.Serializable]
@@ -145,335 +132,316 @@ public sealed class MatchRoute
 
 ---
 
-## 4. Shared solution contract
+## 4. Competitor architecture
 
-Every search method should report through one interface.
+The human and bots must share identity and gameplay actions.
+
+```csharp
+public sealed class TreasureHunter : MonoBehaviour
+{
+    public HunterIdentity Identity { get; }
+    public HunterActionController Actions { get; }
+    public IHunterBrain Brain { get; }
+}
+```
+
+```csharp
+public interface IHunterBrain
+{
+    void Initialize(TreasureHunter hunter);
+    void SetActiveClue(ClueDefinition clue, ClueLocation location);
+    void TickBrain();
+    void Stop();
+}
+```
+
+Implementations:
+
+- `HumanHunterBrain`: converts player input into movement and search actions.
+- `BotHunterBrain`: selects candidates, navigates, and requests the same search actions.
+
+Shared actions include:
+
+- Move/request movement target
+- Dig
+- Inspect
+- Interact
+- Submit clue completion
+- Claim final treasure
+
+No bot-only method should directly solve a clue without using the shared validation path.
+
+---
+
+## 5. Shared completion contract
 
 ```csharp
 public interface IClueSolution
 {
     string LocationId { get; }
-    bool IsAvailable { get; }
+    bool IsActive { get; }
     void ActivateForStage();
-    void Deactivate();
+    void DeactivateAndReset();
 }
 ```
 
-A solution should never directly advance the game locally. It submits a completion attempt to `MatchManager`.
-
 ```csharp
-public interface IClueCompletionReporter
+public interface IClueAttemptReceiver
 {
-    void SubmitCompletionAttempt(
+    CompletionResult SubmitAttempt(
         string locationId,
-        ulong playerId,
+        string competitorId,
         CompletionEvidence evidence);
 }
 ```
 
-The host/server validates that:
+`MatchManager` validates:
 
-- The submitted location is the active route location.
-- The player is allowed to act.
+- The submitted location is active.
+- The competitor is registered.
+- The stage is still unresolved.
 - The solution-specific condition is complete.
-- The stage has not already been solved.
+- Final treasure claim requirements are satisfied.
+
+The first valid completion gets credit.
 
 ---
 
-## 5. Digging system
+## 6. Digging system
 
-## 5.1 Goals
+### Human flow
 
-- Ground appears diggable almost everywhere.
-- Wrong digging looks legitimate.
-- Correct digging requires intentional repeated action.
-- The complete terrain mesh does not need real-time deformation.
-- Hole visuals remain performant and synchronized only where necessary.
+1. Human presses shovel input.
+2. Camera/controller raycasts to an approved ground layer.
+3. Animation and generic effects play.
+4. A dig attempt is sent to the active solution system.
+5. A pooled hole/decal visual is created or updated.
+6. If the point is inside the active discovery zone and cooldown rules pass, progress increases.
+7. At the required progress, `MatchManager` receives a valid completion.
 
-## 5.2 Client flow
+### Bot flow
 
-1. Player presses shovel input.
-2. Local controller performs a ground raycast.
-3. Local animation starts immediately for responsiveness.
-4. A dig attempt containing hit position, normal, surface ID, and timestamp is sent for validation.
-5. Generic particles and sound play for every approved ground hit.
-6. A local hole visual is spawned or updated.
-7. If the position overlaps the active hidden discovery zone, the server increases progress.
-8. Once threshold is reached, the server reveals the clue object globally.
+1. Bot brain chooses an authored search point.
+2. Navigation places the bot within action range.
+3. Bot faces the target and calls the same dig action.
+4. The same ground and discovery validation runs.
 
-## 5.3 Discovery zone
+### `DigDiscoveryZone`
 
-A `DigDiscoveryZone` contains:
+Contains:
 
-- Stable location ID
-- Shape or radius
+- Location ID
+- Shape/radius
 - Required valid digs
-- Minimum time between credited digs
-- Allowed surface
-- Optional depth stages
-- Reveal presentation
+- Minimum interval between credited digs
+- Allowed surface/layer
+- Reveal stages
+- Reset method
 
-Do not give special feedback on the first correct dig. A subtle progressive reveal can begin only after meaningful progress.
+Wrong digs receive normal presentation. Correctness is not revealed immediately.
 
-## 5.4 Hole visual pooling
-
-Use pooled visuals rather than permanent GameObjects.
-
-A hole record may contain:
-
-- Position
-- Rotation aligned to surface normal
-- Size/depth stage
-- Creation time
-- Owner player ID
-- Fade time
-
-For the first prototype, hole visuals may be client-side presentation. Only clue discovery progress and final reveal must be authoritative.
+Use pooled visuals; do not deform the entire terrain mesh.
 
 ---
 
-## 6. Inspect and interaction systems
+## 7. Inspect and interact systems
 
-### Inspect solution
+### Inspect
 
-Use a view raycast and close-range validation.
+- Uses range, view direction, and target validation.
+- A generic prompt may appear only when directly looking at an inspectable object.
+- The prompt must not identify that the object is the active clue before the player has located it.
+- Bots navigate to authored inspect positions and call the same inspect action.
 
-Requirements:
+### Interact
 
-- Target is visually integrated into the environment.
-- No prompt appears from far away.
-- A small generic “Inspect” prompt may appear only after the player is already looking directly at the intended object.
-- The server validates distance, line of sight, and active location ID.
+- Uses an environmental object with a small state machine.
+- Bots navigate to the authored interaction anchor.
+- Multi-step puzzles are outside version 1.0.
 
-### Interaction solution
+---
 
-Environmental interactions should expose a small state machine:
+## 8. Bot data and state machine
+
+### `BotSearchProfile`
+
+Each clue defines plausible search behaviour:
+
+```csharp
+[CreateAssetMenu(menuName = "Treasure Hunt/Bot Search Profile")]
+public sealed class BotSearchProfile : ScriptableObject
+{
+    public BotCandidate[] candidates;
+    public float readDelayMin;
+    public float readDelayMax;
+}
+```
+
+```csharp
+[System.Serializable]
+public sealed class BotCandidate
+{
+    public string candidateId;
+    public TransformReference navigationAnchor;
+    public SearchPointReference[] searchPoints;
+    public bool isCorrectCandidate;
+    public float plausibilityWeight;
+}
+```
+
+Use stable IDs or scene-resolved references rather than storing unsafe scene Transform references directly in reusable assets.
+
+### Bot states
 
 ```text
 Inactive
-→ ActiveForCurrentClue
-→ PlayerInteracting
-→ Solved
-→ PresentationComplete
+→ Reading
+→ ChoosingCandidate
+→ Navigating
+→ Searching
+→ Reassessing
+→ ReactingToCompetitor (optional)
+→ StageSolvedTransition
+→ FinalClaim
+→ Finished
 ```
 
-For multi-step puzzles, the server owns the puzzle state.
+Difficulty parameters control:
+
+- Candidate weighting
+- Movement speed within fair limits
+- Search delay
+- Number of failed attempts before reassessment
+- Chance of reacting to another hunter
+- Reaction delay
+
+The bot must remain deterministic enough to reproduce bugs using route seed plus bot seed.
 
 ---
 
-## 7. Match state
-
-Suggested state machine:
+## 9. Match state
 
 ```text
 MainMenu
-→ Lobby
+→ SessionSetup
 → Loading
 → Countdown
 → ActiveClue
 → ClueTransition
 → FinalTreasure
 → Results
-→ RematchVote
-→ Loading or MainMenu
+→ Restart or MainMenu
 ```
 
-### Authoritative variables
+Authoritative local variables:
 
-- Match state
 - Match seed
-- Selected route IDs
+- Bot seeds
+- Selected route
 - Active clue index
-- Solved stage count
-- First solver for each stage
-- Final treasure state
-- Winner
-- Round start/end timestamps
-
-### Client presentation events
-
-- Show riddle
-- Hide riddle card
-- Announce clue solver
-- Play global sound
-- Reveal intermediate object
-- Reveal final chest
-- Update results
+- Solvers and clue points
+- Remaining time
+- Final claim state
+- Winner and rankings
 
 ---
 
-## 8. Route-generation algorithm
+## 10. Route generation
 
-### Inputs
+Inputs:
 
 - Match seed
-- Number of intermediate stages
-- All enabled clue definitions
-- Region constraints
+- Number of stages
+- Enabled clue definitions
 - Search-method constraints
-- Minimum distance
-- Maximum estimated travel cost
+- Region constraints
+- Travel constraints
+- Final-capable locations
 
-### Basic process
+Process:
 
-```text
 1. Seed deterministic random generator.
-2. Separate intermediate and final candidates.
-3. Randomly choose a valid starting clue.
-4. Repeatedly choose the next clue from candidates that:
-   - are unused,
-   - are not too close,
-   - do not violate method repetition,
-   - improve region diversity,
-   - remain within travel budget.
-5. Choose a valid final treasure location.
-6. Select a riddle variant for every chosen location.
-7. Validate the route.
-8. Retry with a bounded number of attempts if invalid.
-9. Log the final seed and route IDs.
-```
-
-### Debug requirements
-
-- Enter a seed manually.
-- Force a specific location as the next clue.
-- Print the full selected route.
-- Teleport development player to a location.
-- Visualize all location IDs and regions in editor mode.
-- Never include these tools in normal player UI.
+2. Filter intermediate and final candidates.
+3. Select an opening clue.
+4. Select additional valid clues while preventing duplicates and excessive repetition.
+5. Select a final treasure location.
+6. Choose riddle variants.
+7. Validate that every selected location has a bot search profile.
+8. Log seed and IDs in development mode.
+9. Retry a bounded number of times if invalid.
 
 ---
 
-## 9. Multiplayer message model
+## 11. Debug tools
 
-The exact networking package can be selected later. Keep gameplay code behind an adapter where practical.
+Required in Editor and Development Builds:
 
-### Client to server
+- Debug overlay toggle, suggested key `F3`
+- Active route and seed
+- Active location ID
+- Distance to active solution
+- Discovery-zone visualization
+- Dig progress
+- Bot state, candidate, destination, and seed
+- Force clue/location
+- Teleport development player
+- Restart with same/new seed
 
-- Ready state
-- Movement/input data
-- Dig attempt
-- Inspect attempt
-- Interaction/puzzle action
-- Final treasure claim attempt
-- Rematch vote
+Release builds must disable or omit these features.
 
-### Server to clients
-
-- Player joined/left
-- Match countdown
-- Selected route summary needed by clients
-- Active riddle
-- Stage solved event
-- Solver identity
-- Discovery presentation
-- Final treasure available
-- Claim progress/state
-- Winner/results
-- Round reset
-
-Hidden solution geometry should remain server-side or inactive where feasible. At minimum, clients must not receive an obvious active target marker.
+Avoid per-frame console spam. Prefer an overlay and throttled logging.
 
 ---
 
-## 10. Scene and prefab organization
+## 12. Future online multiplayer seam
 
-```text
-Assets/
-├── Game/
-│   ├── Art/
-│   ├── Audio/
-│   ├── Data/
-│   │   ├── Clues/
-│   │   └── Maps/
-│   ├── Prefabs/
-│   │   ├── Player/
-│   │   ├── Clues/
-│   │   ├── Digging/
-│   │   └── UI/
-│   ├── Scenes/
-│   │   ├── Bootstrap.unity
-│   │   ├── MainMenu.unity
-│   │   └── Map01.unity
-│   ├── Scripts/
-│   │   ├── Core/
-│   │   ├── Match/
-│   │   ├── Networking/
-│   │   ├── Clues/
-│   │   ├── Digging/
-│   │   ├── Player/
-│   │     ├── UI/
-│   │   └── Editor/
-│   └── Tests/
-└── ThirdParty/
-```
+Do not implement networking now. Preserve these properties:
 
-Third-party assets should remain separate from game-owned code and content.
+- Stable IDs for competitors and locations
+- Match state changed only through `MatchManager`
+- Search attempts submitted rather than directly changing stage state
+- Human input separated from shared actions
+- Bots separated through `IHunterBrain`
+- Results driven by competitor IDs
+- Route reproducible from seed
+
+A future network authority can replace the local authority. Do not create network packages, RPCs, lobbies, or synchronization code in version 1.0.
 
 ---
 
-## 11. Save data
+## 13. Save data
 
-MVP save data should be minimal:
+Version 1.0 saves only:
 
 - Settings
-- Player display name
-- Input bindings
-- Optional cosmetic selection
-- Recent route seeds for debugging only
+- Difficulty preference
+- Best time
+- Best placement
+- Basic aggregate statistics
 
-Do not build progression, inventory, currency, or cloud save before gameplay validation.
-
----
-
-## 12. Performance targets
-
-Initial PC targets:
-
-- Stable 60 FPS on the developer’s current laptop at intended settings
-- No unbounded hole GameObject growth
-- Pooled particles and hole visuals
-- Limited network messages for cosmetic digging
-- No per-frame search through all clue locations
-- No expensive route generation during active gameplay
-- No physics-heavy fully deformable terrain
+No inventory, currency, unlock tree, or cloud progression is required.
 
 ---
 
-## 13. Testing strategy
+## 14. Testing
 
-### Automated or editor tests
+Automated/editor tests should cover:
 
-- Route generator never selects duplicate IDs.
-- Route generator always ends with a final-capable location.
-- Riddle variant index remains valid.
-- Duplicate scene IDs are detected.
-- Inactive solution cannot complete a stage.
-- Only one solver is credited per stage.
-- Round reset clears all temporary state.
+- Route has no duplicate IDs.
+- Route always contains a final-capable location.
+- Every selected location has riddle and bot metadata.
+- Inactive clue cannot complete.
+- Only one competitor receives first-solver credit.
+- Timer expiry ranks competitors consistently.
+- Reset clears clue, bot, timer, and presentation state.
+- Debug information is disabled for release configuration.
 
-### Manual network tests
+Manual tests should cover:
 
-- Host and one client
-- Host and multiple clients
-- High-latency simulation
-- Client disconnect during active clue
-- Two simultaneous completion attempts
-- Rematch after complete round
-- Ten consecutive rounds without editor restart
-
----
-
-## 14. Technical non-goals
-
-Do not implement in the first version:
-
-- Fully deformable terrain
-- Dedicated servers
-- Host migration
-- Complex anti-cheat
-- Cross-platform networking
-- Large persistent worlds
-- Procedural terrain generation
-- User-generated clue scripting
-- Physics-based player combat
+- Human can finish every location.
+- Bot can finish every location.
+- Bot can recover from a wrong candidate.
+- Human and bot simultaneous completion.
+- Bot wins final treasure.
+- Player wins after losing earlier clues.
+- Repeated sessions without editor restart.
