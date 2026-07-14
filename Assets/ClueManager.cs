@@ -20,6 +20,11 @@ public class ClueManager : MonoBehaviour
     private List<GameObject> spawnedChests = new List<GameObject>(); // Store spawned chests
 
     [SerializeField] private GameObject clueUI;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    [SerializeField] private bool enableDistanceDebugLogging = true;
+    private const float DistanceDebugLogIntervalSeconds = 1f;
+    private float nextDistanceDebugLogTime;
+#endif
     float GetChestYOffset() => 0.5f;
     private bool clueCollected = false;
     public GameObject currentChest;
@@ -60,7 +65,14 @@ public class ClueManager : MonoBehaviour
         {
             Vector3 cluePosition = spawnedChests[currentClueIndex].transform.position;
             float distance = Vector3.Distance(player.transform.position, cluePosition);
-            Debug.Log($"Distance to clue {currentClueIndex}: {distance}");
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (enableDistanceDebugLogging && Time.unscaledTime >= nextDistanceDebugLogTime)
+            {
+                Debug.Log($"Distance to clue {currentClueIndex}: {distance}");
+                nextDistanceDebugLogTime = Time.unscaledTime + DistanceDebugLogIntervalSeconds;
+            }
+#endif
 
             if (distance < 5f)
             {
