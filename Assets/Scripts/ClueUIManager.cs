@@ -9,16 +9,12 @@ public class ClueUIManager : MonoBehaviour
     [Header("Existing Main HUD")]
     public GameObject clueTextHUD;        // Your existing ClueText GameObject
     public Text clueHUDText;          // The TextMeshPro on that HUD
-    public GameObject cluePrompt;         // Your existing "Press E" prompt
 
     [Header("Popup Reveal UI")]
     public GameObject cluePopupUI;        // The new panel you created
     public Text cluePopupText;        // The TextMeshPro under CluePopupUI
     public float popupDuration = 4f;      // Seconds until popup hides
    
-    [Header("Dig Prompt UI")]
-    public GameObject digPromptUI;
-
     void Start()
     {
         // Ensure initial states
@@ -31,9 +27,8 @@ public class ClueUIManager : MonoBehaviour
     {
         StopAllCoroutines();
 
-        // Hide main HUD and prompt
+        // Hide main HUD
         clueTextHUD.SetActive(false);
-        cluePrompt.SetActive(false);
 
         // Show popup
         cluePopupText.text = clue;
@@ -54,21 +49,4 @@ public class ClueUIManager : MonoBehaviour
         clueTextHUD.SetActive(true);
     }
 
-    public Text digPromptText;
-
-    public void ShowDigPrompt()
-    {
-        Debug.Log("ShowDigPrompt() called");
-
-        if (digPromptUI != null)
-        {
-            digPromptUI.SetActive(true);
-            digPromptText.text = "You started digging!";
-        }
-    }
-
-    public void HideDigPrompt()
-    {
-        digPromptUI.SetActive(false);
-    }
 }
