@@ -20,8 +20,6 @@ public class PlayerDigging : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             isPlayerInDigZone = true;
-            ClueUIManager clueUI = FindObjectOfType<ClueUIManager>();
-            if (clueUI != null) clueUI.ShowDigPrompt();
         }
     }
 
@@ -30,8 +28,6 @@ public class PlayerDigging : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             isPlayerInDigZone = false;
-            ClueUIManager clueUI = FindObjectOfType<ClueUIManager>();
-            if (clueUI != null) clueUI.HideDigPrompt();
         }
     }
 
@@ -45,8 +41,5 @@ public class PlayerDigging : MonoBehaviour
         {
             clue.SetActive(false);
         }
-
-        ClueUIManager clueUI = FindObjectOfType<ClueUIManager>();
-        if (clueUI != null) clueUI.HideDigPrompt(); // Also hide the prompt after digging
     }
 }

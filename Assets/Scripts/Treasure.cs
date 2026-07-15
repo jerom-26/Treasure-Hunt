@@ -4,10 +4,9 @@ using UnityEngine;
 
 public class Treasure : MonoBehaviour
 {
-    // Start is called before the first frame update
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Player")) // Make sure your player is tagged "Player"
+        if (other.CompareTag("Player")) 
         {
             Debug.Log("Treasure Collected!");        }
     }

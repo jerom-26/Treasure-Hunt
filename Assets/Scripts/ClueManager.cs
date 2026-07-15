@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
@@ -13,15 +12,18 @@ public class ClueManager : MonoBehaviour
     public GameObject treasurePrefab;
     public Text clueText;
     public Terrain terrain;
-    public Text cluePrompt;
     public GameObject finalTreasurePrefab;
+    private const float ClueCollectionDistance = 5f;
     private int currentClueIndex = 0;
-    private bool nearClue = false;
     private List<GameObject> spawnedChests = new List<GameObject>(); // Store spawned chests
 
     [SerializeField] private GameObject clueUI;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    [SerializeField] private bool enableDistanceDebugLogging = true;
+    private const float DistanceDebugLogIntervalSeconds = 1f;
+    private float nextDistanceDebugLogTime;
+#endif
     float GetChestYOffset() => 0.5f;
-    private bool clueCollected = false;
     public GameObject currentChest;
 
 
@@ -31,13 +33,6 @@ public class ClueManager : MonoBehaviour
         "A rock stands alone near the shore. Check behind it.",
         "The wooden bridge holds a secret. Look underneath!"
     };
-
- /*   private List<Vector3> allPossibleClueLocations = new List<Vector3>
-    {
-        new Vector3(70, 1, 80), new Vector3(50, 0, 60),
-        new Vector3(21, 2, 8), new Vector3(150, 1, 80),
-        new Vector3(78, 0, 150), new Vector3(41, 1, 165)
-    };*/
 
     private List<Vector3> clueLocations = new List<Vector3>();
     private Vector3 finalTreasureLocation;
@@ -49,8 +44,7 @@ public class ClueManager : MonoBehaviour
         AssignRandomClueLocations();
         clueUIManager = FindObjectOfType<ClueUIManager>();
         clueUIManager.RevealNewClue("First Clue: " + clueDescriptions[currentClueIndex]);
-        cluePrompt.gameObject.SetActive(false);
-        LockAllChestsExceptCurrent(); // Lock all chests except the first one
+        LockAllChestsExceptCurrent();
     }
 
     void Update()
@@ -60,32 +54,20 @@ public class ClueManager : MonoBehaviour
         {
             Vector3 cluePosition = spawnedChests[currentClueIndex].transform.position;
             float distance = Vector3.Distance(player.transform.position, cluePosition);
-            Debug.Log($"Distance to clue {currentClueIndex}: {distance}");
 
-            if (distance < 5f)
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (enableDistanceDebugLogging && Time.unscaledTime >= nextDistanceDebugLogTime)
             {
-                cluePrompt.gameObject.SetActive(true);
-                cluePrompt.text = $"Press 'E' to collect clue ({distance:F}m)";
-                nearClue = true;
+                Debug.Log($"Distance to clue {currentClueIndex}: {distance}");
+                nextDistanceDebugLogTime = Time.unscaledTime + DistanceDebugLogIntervalSeconds;
             }
-            else
-            {
-                cluePrompt.gameObject.SetActive(false);
-                nearClue = false;
-            }
+#endif
 
-            if (nearClue && Input.GetKeyDown(KeyCode.E) && !clueCollected)
+            if (distance < ClueCollectionDistance && Input.GetKeyDown(KeyCode.E))
             {
-                clueCollected = true;
                 ShowNextClue();
-                cluePrompt.gameObject.SetActive(false);
-                StartCoroutine(ResetClueCollectedAfterDelay());
             }
 
-            if (Input.GetKeyDown(KeyCode.F))
-            {
-                clueUIManager.ShowDigPrompt();
-            }
         }
 
         if (Input.GetKeyDown(KeyCode.Tab))
@@ -95,13 +77,6 @@ public class ClueManager : MonoBehaviour
         }
 
     }
-    private IEnumerator ResetClueCollectedAfterDelay()
-    {
-        yield return new WaitForSeconds(1f);
-        clueCollected = false;
-    }
-
-
     void AssignRandomClueLocations()
     {
         clueLocations.Clear();
@@ -212,10 +187,8 @@ public class ClueManager : MonoBehaviour
         Vector3 nextCluePosition = clueLocations[currentClueIndex];
         float distance = Vector3.Distance(player.transform.position, nextCluePosition);
 
-        // Show clue UI
         clueUIManager.RevealNewClue($"Next Clue: {clueDescriptions[currentClueIndex]}\nDistance: {distance:F2}m");
 
-        // Lock other chests
         LockAllChestsExceptCurrent();
     }
 
@@ -223,10 +196,8 @@ public class ClueManager : MonoBehaviour
 
     void RevealTreasure()
     {
-        // Use the last clue index instead of currentClueIndex (which is now out of bounds)
         int finalIndex = clueLocations.Count - 1;
 
-        // Optional: destroy the last clue chest if it was different
         if (finalIndex < spawnedChests.Count && spawnedChests[finalIndex] != null)
         {
             Destroy(spawnedChests[finalIndex]);
