@@ -17,7 +17,12 @@ public class ClueManager : MonoBehaviour
     [Header("First Buried Clue")]
     [SerializeField] private DigDiscoveryZone firstDigDiscoveryZone;
 
+    [Header("Second Inspection Clue")]
+    [SerializeField] private InspectDiscoveryTarget secondInspectionTarget;
+
     private const float ClueCollectionDistance = 5f;
+    private const int FirstDigClueIndex = 0;
+    private const int SecondInspectionClueIndex = 1;
     private int currentClueIndex = 0;
     private List<GameObject> spawnedChests = new List<GameObject>(); // Store spawned chests
 
@@ -48,6 +53,11 @@ public class ClueManager : MonoBehaviour
         if (firstDigDiscoveryZone == null)
         {
             firstDigDiscoveryZone = FindFirstObjectByType<DigDiscoveryZone>();
+        }
+
+        if (secondInspectionTarget == null)
+        {
+            secondInspectionTarget = FindFirstObjectByType<InspectDiscoveryTarget>();
         }
 
         AssignRandomClueLocations();
@@ -96,10 +106,17 @@ public class ClueManager : MonoBehaviour
 
         for (int i = 0; i < clueDescriptions.Count; i++)
         {
-            if (i == 0 && firstDigDiscoveryZone != null)
+            if (i == FirstDigClueIndex && firstDigDiscoveryZone != null)
             {
                 spawnedChests.Add(null);
                 clueLocations.Add(firstDigDiscoveryZone.DiscoveryPosition);
+                continue;
+            }
+
+            if (i == SecondInspectionClueIndex && secondInspectionTarget != null)
+            {
+                spawnedChests.Add(null);
+                clueLocations.Add(secondInspectionTarget.InspectionPosition);
                 continue;
             }
 
@@ -117,7 +134,7 @@ public class ClueManager : MonoBehaviour
 
     public bool IsDigDiscoveryActive(DigDiscoveryZone discoveryZone)
     {
-        return currentClueIndex == 0
+        return currentClueIndex == FirstDigClueIndex
                && discoveryZone != null
                && discoveryZone == firstDigDiscoveryZone;
     }
@@ -125,6 +142,24 @@ public class ClueManager : MonoBehaviour
     public bool TryCompleteDigDiscovery(DigDiscoveryZone discoveryZone)
     {
         if (!IsDigDiscoveryActive(discoveryZone))
+        {
+            return false;
+        }
+
+        ShowNextClue();
+        return true;
+    }
+
+    public bool IsInspectionActive(InspectDiscoveryTarget inspectionTarget)
+    {
+        return currentClueIndex == SecondInspectionClueIndex
+               && inspectionTarget != null
+               && inspectionTarget == secondInspectionTarget;
+    }
+
+    public bool TryCompleteInspection(InspectDiscoveryTarget inspectionTarget)
+    {
+        if (!IsInspectionActive(inspectionTarget))
         {
             return false;
         }
@@ -222,9 +257,17 @@ public class ClueManager : MonoBehaviour
         // Get next clue data
         currentChest = spawnedChests[currentClueIndex];
         Vector3 nextCluePosition = clueLocations[currentClueIndex];
-        float distance = Vector3.Distance(player.transform.position, nextCluePosition);
+        string nextClueMessage = $"Next Clue: {clueDescriptions[currentClueIndex]}";
 
-        clueUIManager.RevealNewClue($"Next Clue: {clueDescriptions[currentClueIndex]}\nDistance: {distance:F2}m");
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (enableDistanceDebugLogging)
+        {
+            float distance = Vector3.Distance(player.transform.position, nextCluePosition);
+            nextClueMessage += $"\n[Debug] Distance: {distance:F2}m";
+        }
+#endif
+
+        clueUIManager.RevealNewClue(nextClueMessage);
 
         LockAllChestsExceptCurrent();
     }
