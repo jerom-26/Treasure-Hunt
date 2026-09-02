@@ -13,6 +13,10 @@ public class ClueManager : MonoBehaviour
     public Text clueText;
     public Terrain terrain;
     public GameObject finalTreasurePrefab;
+
+    [Header("First Buried Clue")]
+    [SerializeField] private DigDiscoveryZone firstDigDiscoveryZone;
+
     private const float ClueCollectionDistance = 5f;
     private int currentClueIndex = 0;
     private List<GameObject> spawnedChests = new List<GameObject>(); // Store spawned chests
@@ -41,8 +45,13 @@ public class ClueManager : MonoBehaviour
 
     void Start()
     {
+        if (firstDigDiscoveryZone == null)
+        {
+            firstDigDiscoveryZone = FindFirstObjectByType<DigDiscoveryZone>();
+        }
+
         AssignRandomClueLocations();
-        clueUIManager = FindObjectOfType<ClueUIManager>();
+        clueUIManager = FindFirstObjectByType<ClueUIManager>();
         clueUIManager.RevealNewClue("First Clue: " + clueDescriptions[currentClueIndex]);
         LockAllChestsExceptCurrent();
     }
@@ -52,7 +61,7 @@ public class ClueManager : MonoBehaviour
 
         if (currentClueIndex < clueLocations.Count)
         {
-            Vector3 cluePosition = spawnedChests[currentClueIndex].transform.position;
+            Vector3 cluePosition = clueLocations[currentClueIndex];
             float distance = Vector3.Distance(player.transform.position, cluePosition);
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -63,7 +72,10 @@ public class ClueManager : MonoBehaviour
             }
 #endif
 
-            if (distance < ClueCollectionDistance && Input.GetKeyDown(KeyCode.E))
+            GameObject activeClueChest = spawnedChests[currentClueIndex];
+            if (activeClueChest != null
+                && distance < ClueCollectionDistance
+                && Input.GetKeyDown(KeyCode.E))
             {
                 ShowNextClue();
             }
@@ -84,6 +96,13 @@ public class ClueManager : MonoBehaviour
 
         for (int i = 0; i < clueDescriptions.Count; i++)
         {
+            if (i == 0 && firstDigDiscoveryZone != null)
+            {
+                spawnedChests.Add(null);
+                clueLocations.Add(firstDigDiscoveryZone.DiscoveryPosition);
+                continue;
+            }
+
             Vector3 randomValidPosition = GetRandomValidPosition();
 
             GameObject chest = Instantiate(treasurePrefab, randomValidPosition, Quaternion.identity);
@@ -94,6 +113,24 @@ public class ClueManager : MonoBehaviour
         }
 
         finalTreasureLocation = clueLocations[clueLocations.Count - 1];
+    }
+
+    public bool IsDigDiscoveryActive(DigDiscoveryZone discoveryZone)
+    {
+        return currentClueIndex == 0
+               && discoveryZone != null
+               && discoveryZone == firstDigDiscoveryZone;
+    }
+
+    public bool TryCompleteDigDiscovery(DigDiscoveryZone discoveryZone)
+    {
+        if (!IsDigDiscoveryActive(discoveryZone))
+        {
+            return false;
+        }
+
+        ShowNextClue();
+        return true;
     }
 
 
@@ -214,6 +251,11 @@ public class ClueManager : MonoBehaviour
     {
         for (int i = 0; i < spawnedChests.Count; i++)
         {
+            if (spawnedChests[i] == null)
+            {
+                continue;
+            }
+
             if (i != currentClueIndex)
             {
                 spawnedChests[i].SetActive(false); // Hide other chests
