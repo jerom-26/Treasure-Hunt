@@ -70,10 +70,18 @@ public sealed class PlayerFreeDigging : MonoBehaviour
             shovelAnimator.SetTrigger(shovelDigTriggerHash);
         }
 
-        StartCoroutine(PlayDigImpactFeedback(hit.point, hit.normal, hit.collider.name));
+        StartCoroutine(PlayDigImpactFeedback(
+            hit.point,
+            hit.normal,
+            hit.collider.name,
+            hit.collider.gameObject.layer));
     }
 
-    private IEnumerator PlayDigImpactFeedback(Vector3 hitPoint, Vector3 hitNormal, string hitColliderName)
+    private IEnumerator PlayDigImpactFeedback(
+        Vector3 hitPoint,
+        Vector3 hitNormal,
+        string hitColliderName,
+        int hitSurfaceLayer)
     {
         if (digImpactDelay > 0f)
         {
@@ -96,6 +104,7 @@ public sealed class PlayerFreeDigging : MonoBehaviour
         }
 
         PlaceGroundMark(feedbackPosition, surfaceRotation);
+        DigDiscoveryZone.ReportDig(hitPoint, hitSurfaceLayer);
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log($"Successful dig at {hitPoint} on {hitColliderName}.", this);
