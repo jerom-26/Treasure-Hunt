@@ -134,6 +134,7 @@ GameObject:
   - component: {fileID: 123077351}
   - component: {fileID: 123077356}
   - component: {fileID: 123077359}
+  - component: {fileID: 123077360}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -306,6 +307,24 @@ MonoBehaviour:
   groundMarkPrefab: {fileID: 0}
   groundMarkPoolSize: 16
   groundMarkSurfaceOffset: 0.02
+--- !u!114 &123077360
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 123077350}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1f3a7c9e5d6b4a2b8c0d1e2f3a4b5c6d, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerInspection
+  inspectionCamera: {fileID: 549914506}
+  inspectionDistance: 3
+  inspectionLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  inspectionKey: 101
 --- !u!1 &356823426
 GameObject:
   m_ObjectHideFlags: 0
@@ -1610,6 +1629,74 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1053022313}
   m_CullTransparentMesh: 1
+--- !u!1 &1491810722
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1491810725}
+  - component: {fileID: 1491810724}
+  - component: {fileID: 1491810723}
+  m_Layer: 0
+  m_Name: SecondClueInspectTarget
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1491810723
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1491810722}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c45d7691ea5d4b4ab22e9c5f209a8b71, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::InspectDiscoveryTarget
+  discoveredClueVisual: {fileID: 0}
+  clueManager: {fileID: 1685936773}
+--- !u!65 &1491810724
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1491810722}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1.5, y: 2, z: 1.5}
+  m_Center: {x: 0, y: 1, z: 0}
+--- !u!4 &1491810725
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1491810722}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 67.32539, y: 0, z: 184.42384}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1531042851
 GameObject:
   m_ObjectHideFlags: 0
@@ -2187,6 +2274,8 @@ MonoBehaviour:
   clueText: {fileID: 999900475}
   terrain: {fileID: 587838991}
   finalTreasurePrefab: {fileID: 8367229469247534210, guid: 7a873a03012593a4b84eadd0af5c4a3c, type: 3}
+  firstDigDiscoveryZone: {fileID: 0}
+  secondInspectionTarget: {fileID: 1491810723}
   clueUI: {fileID: 887579721}
   enableDistanceDebugLogging: 1
   currentChest: {fileID: 0}
@@ -2655,3 +2744,4 @@ SceneRoots:
   - {fileID: 356823428}
   - {fileID: 431687790}
   - {fileID: 389606311}
+  - {fileID: 1491810725}
