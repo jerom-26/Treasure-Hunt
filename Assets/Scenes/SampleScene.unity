@@ -1640,6 +1640,7 @@ GameObject:
   - component: {fileID: 1491810725}
   - component: {fileID: 1491810724}
   - component: {fileID: 1491810723}
+  - component: {fileID: 1491810726}
   m_Layer: 0
   m_Name: SecondClueInspectTarget
   m_TagString: Untagged
@@ -1661,6 +1662,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::InspectDiscoveryTarget
   discoveredClueVisual: {fileID: 0}
   clueManager: {fileID: 1685936773}
+--- !u!114 &1491810726
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1491810722}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b28d3f607c4a51e9b2f3a4d5c6e71829, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::ClueLocation
+  locationId: PROTOTYPE_LONE_SHORE_ROCK
+  searchMethod: 1
+  discoveryPresentationRoot: {fileID: 0}
+  solutionBehaviour: {fileID: 1491810723}
 --- !u!65 &1491810724
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -2274,8 +2291,10 @@ MonoBehaviour:
   clueText: {fileID: 999900475}
   terrain: {fileID: 587838991}
   finalTreasurePrefab: {fileID: 8367229469247534210, guid: 7a873a03012593a4b84eadd0af5c4a3c, type: 3}
-  firstDigDiscoveryZone: {fileID: 0}
-  secondInspectionTarget: {fileID: 1491810723}
+  fixedRoute:
+  - {fileID: 11400000, guid: e5b06293af7d84bce5c6d7f8091a4b52, type: 2}
+  - {fileID: 11400000, guid: f6c173a4b08e95cdf6d7e8091a2b5c63, type: 2}
+  - {fileID: 11400000, guid: 07d284b5c19fa6de07e8f9012b3c6d74, type: 2}
   clueUI: {fileID: 887579721}
   enableDistanceDebugLogging: 1
   currentChest: {fileID: 0}
