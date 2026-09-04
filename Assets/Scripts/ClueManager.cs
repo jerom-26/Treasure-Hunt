@@ -13,19 +13,27 @@ public class ClueManager : MonoBehaviour
     public Terrain terrain;
     public GameObject finalTreasurePrefab;
 
-    [Header("Prototype Route")]
-    [Tooltip("Ordered clue definitions used until seeded route generation is implemented.")]
+    [Header("Seeded Route")]
+    [SerializeField] private bool useSeededRoute = true;
+    [SerializeField] private bool randomizeSeedOnStart = true;
+    [SerializeField] private int routeSeed = 12345;
+    [SerializeField] private List<ClueDefinition> cluePool = new List<ClueDefinition>();
+
+    [Header("Fixed Route Fallback")]
     [SerializeField] private List<ClueDefinition> fixedRoute = new List<ClueDefinition>();
+    [SerializeField] private ClueDefinition fixedFinalClue;
 
     private const float ClueCollectionDistance = 5f;
     private int currentClueIndex = 0;
     private readonly List<ClueDefinition> activeRoute = new List<ClueDefinition>();
+    private readonly List<int> activeRiddleVariantIndices = new List<int>();
     private readonly List<ClueLocation> resolvedClueLocations = new List<ClueLocation>();
     private readonly List<GameObject> spawnedChests = new List<GameObject>();
 
     [SerializeField] private GameObject clueUI;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     [SerializeField] private bool enableDistanceDebugLogging = true;
+    [SerializeField] private bool enableRouteDebugLogging = true;
     private const float DistanceDebugLogIntervalSeconds = 1f;
     private float nextDistanceDebugLogTime;
 #endif
@@ -36,12 +44,17 @@ public class ClueManager : MonoBehaviour
     private readonly List<Vector3> clueLocations = new List<Vector3>();
     private Vector3 finalTreasureLocation;
     private ClueUIManager clueUIManager;
+    private ClueDefinition activeFinalClue;
+    private int activeFinalRiddleVariantIndex;
+    private int activeRouteSeed;
+
+    public int ActiveRouteSeed => activeRouteSeed;
 
 
     void Start()
     {
-        BuildFixedRoute();
         clueUIManager = FindFirstObjectByType<ClueUIManager>();
+        BuildRoute();
 
         if (activeRoute.Count == 0 || clueUIManager == null)
         {
@@ -50,7 +63,8 @@ public class ClueManager : MonoBehaviour
             return;
         }
 
-        clueUIManager.RevealNewClue("First Clue: " + GetRiddleText(activeRoute[currentClueIndex]));
+        clueUIManager.RevealNewClue(
+            "First Clue: " + GetActiveRiddleText(currentClueIndex));
         LockAllChestsExceptCurrent();
     }
 
@@ -87,14 +101,112 @@ public class ClueManager : MonoBehaviour
         }
 
     }
-    void BuildFixedRoute()
+    void BuildRoute()
     {
+        currentClueIndex = 0;
         activeRoute.Clear();
+        activeRiddleVariantIndices.Clear();
         resolvedClueLocations.Clear();
         clueLocations.Clear();
         spawnedChests.Clear();
+        activeFinalClue = null;
+        activeFinalRiddleVariantIndex = 0;
+        activeRouteSeed = routeSeed;
 
         Dictionary<string, ClueLocation> locationRegistry = BuildLocationRegistry();
+        if (!TryBuildSeededRoute(locationRegistry, out string generationFailure))
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (useSeededRoute && enableRouteDebugLogging)
+            {
+                Debug.LogWarning(
+                    $"Seeded route generation was unavailable: {generationFailure} "
+                    + "Using the fixed fallback route.",
+                    this);
+            }
+#endif
+            BuildFallbackSelection(locationRegistry);
+        }
+
+        BuildIntermediateRuntime(locationRegistry);
+        ResolveFinalTreasureLocation(locationRegistry);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        LogActiveRoute();
+#endif
+    }
+
+    bool TryBuildSeededRoute(
+        Dictionary<string, ClueLocation> locationRegistry,
+        out string failureReason)
+    {
+        failureReason = string.Empty;
+        if (!useSeededRoute)
+        {
+            failureReason = "Seeded routes are disabled in the Inspector.";
+            return false;
+        }
+
+        int selectedSeed = randomizeSeedOnStart ? CreateSessionSeed() : routeSeed;
+        if (!RouteGenerator.TryGenerate(
+                selectedSeed,
+                cluePool,
+                out MatchRoute generatedRoute,
+                out failureReason))
+        {
+            return false;
+        }
+
+        if (!TryBuildDefinitionLookup(
+                cluePool,
+                out Dictionary<string, ClueDefinition> definitionsByLocation,
+                out failureReason))
+        {
+            return false;
+        }
+
+        foreach (SelectedClue selectedClue in generatedRoute.IntermediateClues)
+        {
+            if (!definitionsByLocation.TryGetValue(
+                    selectedClue.LocationId,
+                    out ClueDefinition clueDefinition))
+            {
+                failureReason =
+                    $"Generated intermediate clue '{selectedClue.LocationId}' is missing from the clue pool.";
+                return false;
+            }
+
+            activeRoute.Add(clueDefinition);
+            activeRiddleVariantIndices.Add(selectedClue.RiddleVariantIndex);
+        }
+
+        if (!definitionsByLocation.TryGetValue(
+                generatedRoute.FinalTreasure.LocationId,
+                out activeFinalClue))
+        {
+            failureReason =
+                $"Generated final clue '{generatedRoute.FinalTreasure.LocationId}' is missing from the clue pool.";
+            ClearSelectedRoute();
+            return false;
+        }
+
+        if (!TryGetMatchingLocation(activeFinalClue, locationRegistry, out _))
+        {
+            failureReason =
+                $"Generated final clue '{activeFinalClue.LocationId}' has no matching scene location.";
+            ClearSelectedRoute();
+            return false;
+        }
+
+        activeFinalRiddleVariantIndex = generatedRoute.FinalTreasure.RiddleVariantIndex;
+        activeRouteSeed = generatedRoute.Seed;
+        return true;
+    }
+
+    void BuildFallbackSelection(Dictionary<string, ClueLocation> locationRegistry)
+    {
+        ClearSelectedRoute();
+        activeRouteSeed = routeSeed;
 
         foreach (ClueDefinition clueDefinition in fixedRoute)
         {
@@ -104,7 +216,24 @@ public class ClueManager : MonoBehaviour
             }
 
             activeRoute.Add(clueDefinition);
+            activeRiddleVariantIndices.Add(0);
+        }
 
+        if (fixedFinalClue != null
+            && TryGetMatchingLocation(fixedFinalClue, locationRegistry, out _))
+        {
+            activeFinalClue = fixedFinalClue;
+        }
+    }
+
+    void BuildIntermediateRuntime(Dictionary<string, ClueLocation> locationRegistry)
+    {
+        resolvedClueLocations.Clear();
+        clueLocations.Clear();
+        spawnedChests.Clear();
+
+        foreach (ClueDefinition clueDefinition in activeRoute)
+        {
             if (TryResolvePlayableLocation(clueDefinition, locationRegistry, out ClueLocation clueLocation))
             {
                 resolvedClueLocations.Add(clueLocation);
@@ -129,8 +258,22 @@ public class ClueManager : MonoBehaviour
 
         if (clueLocations.Count > 0)
         {
-            finalTreasureLocation = clueLocations[clueLocations.Count - 1];
             currentChest = spawnedChests[0];
+        }
+    }
+
+    void ResolveFinalTreasureLocation(Dictionary<string, ClueLocation> locationRegistry)
+    {
+        if (activeFinalClue != null
+            && TryGetMatchingLocation(activeFinalClue, locationRegistry, out ClueLocation finalLocation))
+        {
+            finalTreasureLocation = GetValidClueLocation(finalLocation.DiscoveryPosition);
+            return;
+        }
+
+        if (clueLocations.Count > 0)
+        {
+            finalTreasureLocation = clueLocations[clueLocations.Count - 1];
         }
     }
 
@@ -181,7 +324,9 @@ public class ClueManager : MonoBehaviour
 
         if (!IsInsideTerrain(correctedPosition) || !IsFlatEnough(correctedPosition))
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             Debug.LogWarning($"Position {correctedPosition} is invalid or too steep. Replacing with random.");
+#endif
             return GetRandomValidPosition();
         }
 
@@ -253,7 +398,6 @@ public class ClueManager : MonoBehaviour
 
         if (currentClueIndex >= activeRoute.Count || currentClueIndex >= clueLocations.Count || currentClueIndex >= spawnedChests.Count)
         {
-            clueUIManager.RevealNewClue("Final Clue Solved! The treasure is revealed!");
             RevealTreasure();
             return;
         }
@@ -261,7 +405,7 @@ public class ClueManager : MonoBehaviour
         // Get next clue data
         currentChest = spawnedChests[currentClueIndex];
         Vector3 nextCluePosition = clueLocations[currentClueIndex];
-        string nextClueMessage = $"Next Clue: {GetRiddleText(activeRoute[currentClueIndex])}";
+        string nextClueMessage = $"Next Clue: {GetActiveRiddleText(currentClueIndex)}";
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (enableDistanceDebugLogging)
@@ -290,8 +434,21 @@ public class ClueManager : MonoBehaviour
             Destroy(finalStageChest);
         }
 
-        Instantiate(finalTreasurePrefab, finalTreasureLocation, Quaternion.identity);
-        clueUIManager.RevealNewClue("🎉 Final Treasure Revealed! Go grab it!");
+        currentChest = Instantiate(finalTreasurePrefab, finalTreasureLocation, Quaternion.identity);
+
+        string finalClueMessage = activeFinalClue != null
+            ? $"Final Clue: {GetRiddleText(activeFinalClue, activeFinalRiddleVariantIndex)}"
+            : "🎉 Final Treasure Revealed! Go grab it!";
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (enableDistanceDebugLogging && activeFinalClue != null)
+        {
+            float distance = Vector3.Distance(player.transform.position, finalTreasureLocation);
+            finalClueMessage += $"\n[Debug] Distance: {distance:F2}m";
+        }
+#endif
+
+        clueUIManager.RevealNewClue(finalClueMessage);
     }
 
     private Dictionary<string, ClueLocation> BuildLocationRegistry()
@@ -319,6 +476,55 @@ public class ClueManager : MonoBehaviour
         return registry;
     }
 
+    private static bool TryBuildDefinitionLookup(
+        IReadOnlyList<ClueDefinition> definitions,
+        out Dictionary<string, ClueDefinition> definitionsByLocation,
+        out string failureReason)
+    {
+        definitionsByLocation = new Dictionary<string, ClueDefinition>(StringComparer.Ordinal);
+        failureReason = string.Empty;
+
+        foreach (ClueDefinition definition in definitions)
+        {
+            if (definition == null)
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(definition.LocationId))
+            {
+                failureReason = $"Clue definition '{definition.name}' has no location ID.";
+                return false;
+            }
+
+            if (!definitionsByLocation.TryAdd(definition.LocationId, definition))
+            {
+                failureReason = $"Duplicate clue location ID '{definition.LocationId}' was found.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryGetMatchingLocation(
+        ClueDefinition clueDefinition,
+        Dictionary<string, ClueLocation> registry,
+        out ClueLocation clueLocation)
+    {
+        clueLocation = null;
+        if (clueDefinition == null
+            || string.IsNullOrWhiteSpace(clueDefinition.LocationId)
+            || !registry.TryGetValue(clueDefinition.LocationId, out ClueLocation candidate)
+            || !candidate.Matches(clueDefinition))
+        {
+            return false;
+        }
+
+        clueLocation = candidate;
+        return true;
+    }
+
     private bool TryResolvePlayableLocation(
         ClueDefinition clueDefinition,
         Dictionary<string, ClueLocation> registry,
@@ -326,9 +532,7 @@ public class ClueManager : MonoBehaviour
     {
         clueLocation = null;
 
-        if (string.IsNullOrWhiteSpace(clueDefinition.LocationId)
-            || !registry.TryGetValue(clueDefinition.LocationId, out ClueLocation candidate)
-            || !candidate.Matches(clueDefinition))
+        if (!TryGetMatchingLocation(clueDefinition, registry, out ClueLocation candidate))
         {
             return false;
         }
@@ -356,11 +560,62 @@ public class ClueManager : MonoBehaviour
             : null;
     }
 
-    private static string GetRiddleText(ClueDefinition clueDefinition)
+    private string GetActiveRiddleText(int clueIndex)
     {
-        string riddle = clueDefinition != null ? clueDefinition.GetRiddleVariant(0) : string.Empty;
+        if (clueIndex < 0 || clueIndex >= activeRoute.Count)
+        {
+            return "Clue text is missing.";
+        }
+
+        int riddleVariantIndex = clueIndex < activeRiddleVariantIndices.Count
+            ? activeRiddleVariantIndices[clueIndex]
+            : 0;
+        return GetRiddleText(activeRoute[clueIndex], riddleVariantIndex);
+    }
+
+    private static string GetRiddleText(ClueDefinition clueDefinition, int riddleVariantIndex)
+    {
+        string riddle = clueDefinition != null
+            ? clueDefinition.GetRiddleVariant(riddleVariantIndex)
+            : string.Empty;
         return string.IsNullOrWhiteSpace(riddle) ? "Clue text is missing." : riddle;
     }
+
+    private void ClearSelectedRoute()
+    {
+        activeRoute.Clear();
+        activeRiddleVariantIndices.Clear();
+        activeFinalClue = null;
+        activeFinalRiddleVariantIndex = 0;
+    }
+
+    private static int CreateSessionSeed()
+    {
+        return Guid.NewGuid().GetHashCode();
+    }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private void LogActiveRoute()
+    {
+        if (!enableRouteDebugLogging || activeRoute.Count == 0)
+        {
+            return;
+        }
+
+        var routeIds = new List<string>(activeRoute.Count + 1);
+        foreach (ClueDefinition clueDefinition in activeRoute)
+        {
+            routeIds.Add(clueDefinition.LocationId);
+        }
+
+        if (activeFinalClue != null)
+        {
+            routeIds.Add($"FINAL:{activeFinalClue.LocationId}");
+        }
+
+        Debug.Log($"Route seed {activeRouteSeed}: {string.Join(" -> ", routeIds)}", this);
+    }
+#endif
 
 
     void LockAllChestsExceptCurrent()

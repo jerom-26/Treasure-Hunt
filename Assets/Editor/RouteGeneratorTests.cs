@@ -117,6 +117,37 @@ public sealed class RouteGeneratorTests
         StringAssert.Contains("no final-capable definition", failureReason);
     }
 
+    [Test]
+    public void ProjectPrototypePoolProducesACompleteRoute()
+    {
+        string[] definitionGuids = AssetDatabase.FindAssets(
+            "t:ClueDefinition",
+            new[] { "Assets/GameData/Clues" });
+        List<ClueDefinition> definitions = definitionGuids
+            .Select(AssetDatabase.GUIDToAssetPath)
+            .Select(AssetDatabase.LoadAssetAtPath<ClueDefinition>)
+            .Where(definition => definition != null)
+            .ToList();
+
+        bool succeeded = RouteGenerator.TryGenerate(
+            12345,
+            definitions,
+            out MatchRoute route,
+            out string failureReason);
+
+        Assert.That(succeeded, Is.True, failureReason);
+        Assert.That(route.IntermediateClues.Count, Is.EqualTo(3));
+
+        Dictionary<string, ClueDefinition> definitionsByLocation = definitions.ToDictionary(
+            definition => definition.LocationId,
+            System.StringComparer.Ordinal);
+        Assert.That(
+            route.IntermediateClues.All(
+                selected => definitionsByLocation[selected.LocationId].CanBeIntermediate),
+            Is.True);
+        Assert.That(definitionsByLocation[route.FinalTreasure.LocationId].CanBeFinal, Is.True);
+    }
+
     private List<ClueDefinition> CreateValidPool()
     {
         return new List<ClueDefinition>
