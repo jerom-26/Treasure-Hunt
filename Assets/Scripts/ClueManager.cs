@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 using Random = UnityEngine.Random;
@@ -14,17 +13,15 @@ public class ClueManager : MonoBehaviour
     public Terrain terrain;
     public GameObject finalTreasurePrefab;
 
-    [Header("First Buried Clue")]
-    [SerializeField] private DigDiscoveryZone firstDigDiscoveryZone;
-
-    [Header("Second Inspection Clue")]
-    [SerializeField] private InspectDiscoveryTarget secondInspectionTarget;
+    [Header("Prototype Route")]
+    [Tooltip("Ordered clue definitions used until seeded route generation is implemented.")]
+    [SerializeField] private List<ClueDefinition> fixedRoute = new List<ClueDefinition>();
 
     private const float ClueCollectionDistance = 5f;
-    private const int FirstDigClueIndex = 0;
-    private const int SecondInspectionClueIndex = 1;
     private int currentClueIndex = 0;
-    private List<GameObject> spawnedChests = new List<GameObject>(); // Store spawned chests
+    private readonly List<ClueDefinition> activeRoute = new List<ClueDefinition>();
+    private readonly List<ClueLocation> resolvedClueLocations = new List<ClueLocation>();
+    private readonly List<GameObject> spawnedChests = new List<GameObject>();
 
     [SerializeField] private GameObject clueUI;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -36,33 +33,24 @@ public class ClueManager : MonoBehaviour
     public GameObject currentChest;
 
 
-    private List<string> clueDescriptions = new List<string>
-    {
-        "Find the tallest tree and look beneath it.",
-        "A rock stands alone near the shore. Check behind it.",
-        "The wooden bridge holds a secret. Look underneath!"
-    };
-
-    private List<Vector3> clueLocations = new List<Vector3>();
+    private readonly List<Vector3> clueLocations = new List<Vector3>();
     private Vector3 finalTreasureLocation;
     private ClueUIManager clueUIManager;
 
 
     void Start()
     {
-        if (firstDigDiscoveryZone == null)
-        {
-            firstDigDiscoveryZone = FindFirstObjectByType<DigDiscoveryZone>();
-        }
-
-        if (secondInspectionTarget == null)
-        {
-            secondInspectionTarget = FindFirstObjectByType<InspectDiscoveryTarget>();
-        }
-
-        AssignRandomClueLocations();
+        BuildFixedRoute();
         clueUIManager = FindFirstObjectByType<ClueUIManager>();
-        clueUIManager.RevealNewClue("First Clue: " + clueDescriptions[currentClueIndex]);
+
+        if (activeRoute.Count == 0 || clueUIManager == null)
+        {
+            Debug.LogError("ClueManager requires at least one clue definition and a ClueUIManager.", this);
+            enabled = false;
+            return;
+        }
+
+        clueUIManager.RevealNewClue("First Clue: " + GetRiddleText(activeRoute[currentClueIndex]));
         LockAllChestsExceptCurrent();
     }
 
@@ -99,44 +87,59 @@ public class ClueManager : MonoBehaviour
         }
 
     }
-    void AssignRandomClueLocations()
+    void BuildFixedRoute()
     {
+        activeRoute.Clear();
+        resolvedClueLocations.Clear();
         clueLocations.Clear();
         spawnedChests.Clear();
 
-        for (int i = 0; i < clueDescriptions.Count; i++)
+        Dictionary<string, ClueLocation> locationRegistry = BuildLocationRegistry();
+
+        foreach (ClueDefinition clueDefinition in fixedRoute)
         {
-            if (i == FirstDigClueIndex && firstDigDiscoveryZone != null)
+            if (clueDefinition == null)
             {
-                spawnedChests.Add(null);
-                clueLocations.Add(firstDigDiscoveryZone.DiscoveryPosition);
                 continue;
             }
 
-            if (i == SecondInspectionClueIndex && secondInspectionTarget != null)
+            activeRoute.Add(clueDefinition);
+
+            if (TryResolvePlayableLocation(clueDefinition, locationRegistry, out ClueLocation clueLocation))
             {
+                resolvedClueLocations.Add(clueLocation);
                 spawnedChests.Add(null);
-                clueLocations.Add(secondInspectionTarget.InspectionPosition);
+                clueLocations.Add(clueLocation.DiscoveryPosition);
                 continue;
             }
 
+            resolvedClueLocations.Add(null);
             Vector3 randomValidPosition = GetRandomValidPosition();
-
             GameObject chest = Instantiate(treasurePrefab, randomValidPosition, Quaternion.identity);
             spawnedChests.Add(chest);
             clueLocations.Add(randomValidPosition);
 
-            Debug.Log($"Chest Spawned at: {randomValidPosition}");
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (enableDistanceDebugLogging)
+            {
+                Debug.Log($"Prototype fallback chest spawned at {randomValidPosition}.", chest);
+            }
+#endif
         }
 
-        finalTreasureLocation = clueLocations[clueLocations.Count - 1];
+        if (clueLocations.Count > 0)
+        {
+            finalTreasureLocation = clueLocations[clueLocations.Count - 1];
+            currentChest = spawnedChests[0];
+        }
     }
 
     public bool IsDigDiscoveryActive(DigDiscoveryZone discoveryZone)
     {
-        return currentClueIndex == FirstDigClueIndex
-               && discoveryZone != null
-               && discoveryZone == firstDigDiscoveryZone;
+        ClueLocation activeLocation = GetActiveClueLocation();
+        return discoveryZone != null
+               && activeLocation != null
+               && activeLocation.GetSolution<DigDiscoveryZone>() == discoveryZone;
     }
 
     public bool TryCompleteDigDiscovery(DigDiscoveryZone discoveryZone)
@@ -152,9 +155,10 @@ public class ClueManager : MonoBehaviour
 
     public bool IsInspectionActive(InspectDiscoveryTarget inspectionTarget)
     {
-        return currentClueIndex == SecondInspectionClueIndex
-               && inspectionTarget != null
-               && inspectionTarget == secondInspectionTarget;
+        ClueLocation activeLocation = GetActiveClueLocation();
+        return inspectionTarget != null
+               && activeLocation != null
+               && activeLocation.GetSolution<InspectDiscoveryTarget>() == inspectionTarget;
     }
 
     public bool TryCompleteInspection(InspectDiscoveryTarget inspectionTarget)
@@ -247,7 +251,7 @@ public class ClueManager : MonoBehaviour
     {
         currentClueIndex++;
 
-        if (currentClueIndex >= clueDescriptions.Count || currentClueIndex >= clueLocations.Count || currentClueIndex >= spawnedChests.Count)
+        if (currentClueIndex >= activeRoute.Count || currentClueIndex >= clueLocations.Count || currentClueIndex >= spawnedChests.Count)
         {
             clueUIManager.RevealNewClue("Final Clue Solved! The treasure is revealed!");
             RevealTreasure();
@@ -257,7 +261,7 @@ public class ClueManager : MonoBehaviour
         // Get next clue data
         currentChest = spawnedChests[currentClueIndex];
         Vector3 nextCluePosition = clueLocations[currentClueIndex];
-        string nextClueMessage = $"Next Clue: {clueDescriptions[currentClueIndex]}";
+        string nextClueMessage = $"Next Clue: {GetRiddleText(activeRoute[currentClueIndex])}";
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (enableDistanceDebugLogging)
@@ -277,16 +281,85 @@ public class ClueManager : MonoBehaviour
     void RevealTreasure()
     {
         int finalIndex = clueLocations.Count - 1;
+        GameObject finalStageChest = finalIndex >= 0 && finalIndex < spawnedChests.Count
+            ? spawnedChests[finalIndex]
+            : null;
 
-        if (finalIndex < spawnedChests.Count && spawnedChests[finalIndex] != null)
+        if (finalStageChest != null)
         {
-            Destroy(spawnedChests[finalIndex]);
+            Destroy(finalStageChest);
         }
 
-        Vector3 finalPosition = spawnedChests[spawnedChests.Count - 1].transform.position;
-        Destroy(spawnedChests[spawnedChests.Count - 1]);
-        Instantiate(finalTreasurePrefab, finalPosition, Quaternion.identity);
+        Instantiate(finalTreasurePrefab, finalTreasureLocation, Quaternion.identity);
         clueUIManager.RevealNewClue("🎉 Final Treasure Revealed! Go grab it!");
+    }
+
+    private Dictionary<string, ClueLocation> BuildLocationRegistry()
+    {
+        var registry = new Dictionary<string, ClueLocation>(StringComparer.Ordinal);
+        ClueLocation[] sceneLocations = FindObjectsByType<ClueLocation>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
+
+        foreach (ClueLocation sceneLocation in sceneLocations)
+        {
+            if (sceneLocation == null || string.IsNullOrWhiteSpace(sceneLocation.LocationId))
+            {
+                continue;
+            }
+
+            if (!registry.TryAdd(sceneLocation.LocationId, sceneLocation))
+            {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                Debug.LogWarning("Duplicate clue location ID found in the active scene.", sceneLocation);
+#endif
+            }
+        }
+
+        return registry;
+    }
+
+    private bool TryResolvePlayableLocation(
+        ClueDefinition clueDefinition,
+        Dictionary<string, ClueLocation> registry,
+        out ClueLocation clueLocation)
+    {
+        clueLocation = null;
+
+        if (string.IsNullOrWhiteSpace(clueDefinition.LocationId)
+            || !registry.TryGetValue(clueDefinition.LocationId, out ClueLocation candidate)
+            || !candidate.Matches(clueDefinition))
+        {
+            return false;
+        }
+
+        bool hasSupportedSolution = clueDefinition.SearchMethod switch
+        {
+            SearchMethod.Dig => candidate.GetSolution<DigDiscoveryZone>() != null,
+            SearchMethod.Inspect => candidate.GetSolution<InspectDiscoveryTarget>() != null,
+            _ => false
+        };
+
+        if (!hasSupportedSolution)
+        {
+            return false;
+        }
+
+        clueLocation = candidate;
+        return true;
+    }
+
+    private ClueLocation GetActiveClueLocation()
+    {
+        return currentClueIndex >= 0 && currentClueIndex < resolvedClueLocations.Count
+            ? resolvedClueLocations[currentClueIndex]
+            : null;
+    }
+
+    private static string GetRiddleText(ClueDefinition clueDefinition)
+    {
+        string riddle = clueDefinition != null ? clueDefinition.GetRiddleVariant(0) : string.Empty;
+        return string.IsNullOrWhiteSpace(riddle) ? "Clue text is missing." : riddle;
     }
 
 
