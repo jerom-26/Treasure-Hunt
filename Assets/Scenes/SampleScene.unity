@@ -2291,12 +2291,22 @@ MonoBehaviour:
   clueText: {fileID: 999900475}
   terrain: {fileID: 587838991}
   finalTreasurePrefab: {fileID: 8367229469247534210, guid: 7a873a03012593a4b84eadd0af5c4a3c, type: 3}
+  useSeededRoute: 1
+  randomizeSeedOnStart: 1
+  routeSeed: 12345
+  cluePool:
+  - {fileID: 11400000, guid: e5b06293af7d84bce5c6d7f8091a4b52, type: 2}
+  - {fileID: 11400000, guid: f6c173a4b08e95cdf6d7e8091a2b5c63, type: 2}
+  - {fileID: 11400000, guid: 07d284b5c19fa6de07e8f9012b3c6d74, type: 2}
+  - {fileID: 11400000, guid: 6db2ea1c9f679d34efc021b3a3945567, type: 2}
   fixedRoute:
   - {fileID: 11400000, guid: e5b06293af7d84bce5c6d7f8091a4b52, type: 2}
   - {fileID: 11400000, guid: f6c173a4b08e95cdf6d7e8091a2b5c63, type: 2}
   - {fileID: 11400000, guid: 07d284b5c19fa6de07e8f9012b3c6d74, type: 2}
+  fixedFinalClue: {fileID: 11400000, guid: 6db2ea1c9f679d34efc021b3a3945567, type: 2}
   clueUI: {fileID: 887579721}
   enableDistanceDebugLogging: 1
+  enableRouteDebugLogging: 1
   currentChest: {fileID: 0}
 --- !u!4 &1685936774
 Transform:
@@ -2751,6 +2761,54 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2144857567}
   m_CullTransparentMesh: 1
+--- !u!1 &2077000001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2077000002}
+  - component: {fileID: 2077000003}
+  m_Layer: 0
+  m_Name: PrototypeFinalTreasureLocation
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2077000002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2077000001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 150, y: 0, z: 35}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2077000003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2077000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b28d3f607c4a51e9b2f3a4d5c6e71829, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::ClueLocation
+  locationId: PROTOTYPE_SOUTHEAST_FIELD_FINAL
+  searchMethod: 2
+  discoveryPresentationRoot: {fileID: 0}
+  solutionBehaviour: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -2764,3 +2822,4 @@ SceneRoots:
   - {fileID: 431687790}
   - {fileID: 389606311}
   - {fileID: 1491810725}
+  - {fileID: 2077000002}
