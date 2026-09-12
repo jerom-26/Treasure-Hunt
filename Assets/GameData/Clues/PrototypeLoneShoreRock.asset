@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a17c2e5f6b3940d8a1e2f3c4b5d60718, type: 3}
+  m_Name: PrototypeLoneShoreRock
+  m_EditorClassIdentifier: Assembly-CSharp::ClueDefinition
+  locationId: PROTOTYPE_LONE_SHORE_ROCK
+  searchMethod: 1
+  regionId: PROTOTYPE_SHORE
+  difficulty: 2
+  canBeIntermediate: 1
+  canBeFinal: 0
+  riddleVariants:
+  - A rock stands alone near the shore. Check behind it.
